@@ -1,0 +1,362 @@
+'***************************************************************************
+' HFSS VBScript for 8-Pole Multi-Layer Stripline Filter
+' Proper 5-layer stack with exact resonator placement
+'***************************************************************************
+
+'Initialize variables
+Dim oAnsoftApp, oDesktop, oProject, oDesign, oEditor, oModule, oDefinitionManager
+
+'Set project objects
+Set oAnsoftApp = CreateObject("AnsoftHfss.HfssScriptInterface")
+Set oDesktop = oAnsoftApp.GetAppDesktop()
+oDesktop.RestoreWindow
+Set oProject = oDesktop.NewProject
+oProject.InsertDesign "HFSS", "MultiLayerFilter_8Pole", "DrivenModal", ""
+Set oDesign = oProject.SetActiveDesign("MultiLayerFilter_8Pole")
+Set oEditor = oDesign.SetActiveEditor("3D Modeler")
+
+'Set units to mils
+oEditor.SetModelUnits Array("NAME:Units Parameter", "Units:=", "mil", "Rescale:=", false)
+
+'***************************************************************************
+' Material Definitions
+'***************************************************************************
+
+Set oDefinitionManager = oProject.GetDefinitionManager()
+
+'Rogers 3010 10mil material
+oDefinitionManager.AddMaterial Array("NAME:Rogers3010_10mil", _
+    "CoordinateSystemType:=", "Cartesian", _
+    Array("NAME:AttachedData"), _
+    "permittivity:=", "10.2", _
+    "permeability:=", "1", _
+    "dielectric_loss_tangent:=", "0.0023")
+
+'Rogers 3010 5mil material (same properties)
+oDefinitionManager.AddMaterial Array("NAME:Rogers3010", _
+    "CoordinateSystemType:=", "Cartesian", _
+    Array("NAME:AttachedData"), _
+    "permittivity:=", "10.2", _
+    "permeability:=", "1", _
+    "dielectric_loss_tangent:=", "0.0023")
+
+'2929 Prepreg material
+oDefinitionManager.AddMaterial Array("NAME:Prepreg2929", _
+    "CoordinateSystemType:=", "Cartesian", _
+    Array("NAME:AttachedData"), _
+    "permittivity:=", "2.94", _
+    "permeability:=", "1", _
+    "dielectric_loss_tangent:=", "0.0022")
+
+'***************************************************************************
+' Design Parameters from Edge Data
+'***************************************************************************
+
+'Layer thicknesses
+Dim layer1_thickness, layer2_thickness, layer3_thickness, layer4_thickness, layer5_thickness
+layer1_thickness = 10      'mil - Top Rogers3010_10mil
+layer2_thickness = 2.25    'mil - 2929 prepreg
+layer3_thickness = 5       'mil - Middle Rogers3010
+layer4_thickness = 2.25    'mil - 2929 prepreg  
+layer5_thickness = 10      'mil - Bottom Rogers3010_10mil
+
+'Conductor thickness (from edge data)
+Dim cond_h
+cond_h = 0.65  'mil
+
+'Board dimensions (from edge extents)
+Dim board_x_min, board_x_max, board_y_min, board_y_max
+board_x_min = -188.909909
+board_x_max = 188.909909
+board_y_min = -124.6152668
+board_y_max = 124.6152668
+
+'Calculate layer Z positions
+Dim z_layer1_bottom, z_layer1_top, z_layer2_bottom, z_layer2_top
+Dim z_layer3_bottom, z_layer3_top, z_layer4_bottom, z_layer4_top
+Dim z_layer5_bottom, z_layer5_top
+
+z_layer5_bottom = 0
+z_layer5_top = z_layer5_bottom + layer5_thickness
+z_layer4_bottom = z_layer5_top
+z_layer4_top = z_layer4_bottom + layer4_thickness
+z_layer3_bottom = z_layer4_top
+z_layer3_top = z_layer3_bottom + layer3_thickness
+z_layer2_bottom = z_layer3_top
+z_layer2_top = z_layer2_bottom + layer2_thickness
+z_layer1_bottom = z_layer2_top
+z_layer1_top = z_layer1_bottom + layer1_thickness
+
+'Resonator dimensions
+Dim resA_size, resB_width, resB_height
+resA_size = 83.628        'mil - Type A square size
+resB_width = 73.352       'mil - Type B width
+resB_height = 93.471      'mil - Type B height
+
+'Slot dimensions (from edge data)
+Dim resA_slot_size, resB_slot_width, resB_slot_height
+resA_slot_size = 29.29747418    'mil - Type A slot
+resB_slot_width = 19.02164785   'mil - Type B slot width
+resB_slot_height = 39.13999386  'mil - Type B slot height
+
+'***************************************************************************
+' Create 5-Layer Substrate Stack
+'***************************************************************************
+
+'Layer 5 - Bottom Rogers3010_10mil (Blue in image)
+oEditor.CreateBox Array("NAME:BoxParameters", _
+    "XPosition:=", CStr(board_x_min) & "mil", _
+    "YPosition:=", CStr(board_y_min) & "mil", _
+    "ZPosition:=", CStr(z_layer5_bottom) & "mil", _
+    "XSize:=", CStr(board_x_max - board_x_min) & "mil", _
+    "YSize:=", CStr(board_y_max - board_y_min) & "mil", _
+    "ZSize:=", CStr(layer5_thickness) & "mil"), _
+    Array("NAME:Attributes", "Name:=", "Layer5_Rogers3010_10mil", _
+    "Flags:=", "", "Color:=", "(0 0 255)", "Transparency:=", 0.7, _
+    "PartCoordinateSystem:=", "Global", _
+    "MaterialValue:=", Chr(34) & "Rogers3010_10mil" & Chr(34), _
+    "SolveInside:=", true)
+
+'Layer 4 - 2929 Prepreg
+oEditor.CreateBox Array("NAME:BoxParameters", _
+    "XPosition:=", CStr(board_x_min) & "mil", _
+    "YPosition:=", CStr(board_y_min) & "mil", _
+    "ZPosition:=", CStr(z_layer4_bottom) & "mil", _
+    "XSize:=", CStr(board_x_max - board_x_min) & "mil", _
+    "YSize:=", CStr(board_y_max - board_y_min) & "mil", _
+    "ZSize:=", CStr(layer4_thickness) & "mil"), _
+    Array("NAME:Attributes", "Name:=", "Layer4_Prepreg2929", _
+    "Flags:=", "", "Color:=", "(255 255 0)", "Transparency:=", 0.7, _
+    "PartCoordinateSystem:=", "Global", _
+    "MaterialValue:=", Chr(34) & "Prepreg2929" & Chr(34), _
+    "SolveInside:=", true)
+
+'Layer 3 - Middle Rogers3010 (5 mil)
+oEditor.CreateBox Array("NAME:BoxParameters", _
+    "XPosition:=", CStr(board_x_min) & "mil", _
+    "YPosition:=", CStr(board_y_min) & "mil", _
+    "ZPosition:=", CStr(z_layer3_bottom) & "mil", _
+    "XSize:=", CStr(board_x_max - board_x_min) & "mil", _
+    "YSize:=", CStr(board_y_max - board_y_min) & "mil", _
+    "ZSize:=", CStr(layer3_thickness) & "mil"), _
+    Array("NAME:Attributes", "Name:=", "Layer3_Rogers3010", _
+    "Flags:=", "", "Color:=", "(0 255 0)", "Transparency:=", 0.7, _
+    "PartCoordinateSystem:=", "Global", _
+    "MaterialValue:=", Chr(34) & "Rogers3010" & Chr(34), _
+    "SolveInside:=", true)
+
+'Layer 2 - 2929 Prepreg
+oEditor.CreateBox Array("NAME:BoxParameters", _
+    "XPosition:=", CStr(board_x_min) & "mil", _
+    "YPosition:=", CStr(board_y_min) & "mil", _
+    "ZPosition:=", CStr(z_layer2_bottom) & "mil", _
+    "XSize:=", CStr(board_x_max - board_x_min) & "mil", _
+    "YSize:=", CStr(board_y_max - board_y_min) & "mil", _
+    "ZSize:=", CStr(layer2_thickness) & "mil"), _
+    Array("NAME:Attributes", "Name:=", "Layer2_Prepreg2929", _
+    "Flags:=", "", "Color:=", "(255 255 0)", "Transparency:=", 0.7, _
+    "PartCoordinateSystem:=", "Global", _
+    "MaterialValue:=", Chr(34) & "Prepreg2929" & Chr(34), _
+    "SolveInside:=", true)
+
+'Layer 1 - Top Rogers3010_10mil
+oEditor.CreateBox Array("NAME:BoxParameters", _
+    "XPosition:=", CStr(board_x_min) & "mil", _
+    "YPosition:=", CStr(board_y_min) & "mil", _
+    "ZPosition:=", CStr(z_layer1_bottom) & "mil", _
+    "XSize:=", CStr(board_x_max - board_x_min) & "mil", _
+    "YSize:=", CStr(board_y_max - board_y_min) & "mil", _
+    "ZSize:=", CStr(layer1_thickness) & "mil"), _
+    Array("NAME:Attributes", "Name:=", "Layer1_Rogers3010_10mil", _
+    "Flags:=", "", "Color:=", "(0 128 0)", "Transparency:=", 0.7, _
+    "PartCoordinateSystem:=", "Global", _
+    "MaterialValue:=", Chr(34) & "Rogers3010_10mil" & Chr(34), _
+    "SolveInside:=", true)
+
+'***************************************************************************
+' Create Type A Resonator (Square with centered slot)
+'***************************************************************************
+
+Sub CreateTypeAResonator(res_num, x_center, y_center, z_pos)
+    Dim x_pos, y_pos, slot_offset
+    
+    'Calculate corner position from center
+    x_pos = x_center - resA_size/2
+    y_pos = y_center - resA_size/2
+    slot_offset = (resA_size - resA_slot_size)/2
+    
+    'Main resonator body
+    oEditor.CreateBox Array("NAME:BoxParameters", _
+        "XPosition:=", CStr(x_pos) & "mil", _
+        "YPosition:=", CStr(y_pos) & "mil", _
+        "ZPosition:=", CStr(z_pos) & "mil", _
+        "XSize:=", CStr(resA_size) & "mil", _
+        "YSize:=", CStr(resA_size) & "mil", _
+        "ZSize:=", CStr(cond_h) & "mil"), _
+        Array("NAME:Attributes", "Name:=", "Res" & res_num & "_Body", _
+        "Flags:=", "", "Color:=", "(255 128 0)", _
+        "Transparency:=", 0, "PartCoordinateSystem:=", "Global", _
+        "MaterialValue:=", Chr(34) & "copper" & Chr(34), _
+        "SolveInside:=", false)
+    
+    'Create centered slot
+    oEditor.CreateBox Array("NAME:BoxParameters", _
+        "XPosition:=", CStr(x_pos + slot_offset) & "mil", _
+        "YPosition:=", CStr(y_pos + slot_offset) & "mil", _
+        "ZPosition:=", CStr(z_pos) & "mil", _
+        "XSize:=", CStr(resA_slot_size) & "mil", _
+        "YSize:=", CStr(resA_slot_size) & "mil", _
+        "ZSize:=", CStr(cond_h) & "mil"), _
+        Array("NAME:Attributes", "Name:=", "Res" & res_num & "_Slot", _
+        "Flags:=", "", "Color:=", "(255 0 0)", _
+        "Transparency:=", 0, "PartCoordinateSystem:=", "Global", _
+        "MaterialValue:=", Chr(34) & "vacuum" & Chr(34), _
+        "SolveInside:=", true)
+    
+    'Subtract slot
+    oEditor.Subtract Array("NAME:Selections", _
+        "Blank Parts:=", "Res" & res_num & "_Body", _
+        "Tool Parts:=", "Res" & res_num & "_Slot"), _
+        Array("NAME:SubtractParameters", "KeepOriginals:=", false)
+End Sub
+
+'***************************************************************************
+' Create Type B Resonator (Rectangular with dual slots)
+'***************************************************************************
+
+Sub CreateTypeBResonator(res_num, x_center, y_center, z_pos)
+    Dim x_pos, y_pos, slot_x_offset, slot_y_offset, gap_between_slots
+    
+    'Calculate corner position from center
+    x_pos = x_center - resB_width/2
+    y_pos = y_center - resB_height/2
+    slot_x_offset = (resB_width - resB_slot_width)/2
+    
+    'Calculate slot positions with gap
+    gap_between_slots = 4.071314924  'mil - from edge data
+    slot_y_offset = (resB_height - 2*resB_slot_height - gap_between_slots)/2
+    
+    'Main resonator body
+    oEditor.CreateBox Array("NAME:BoxParameters", _
+        "XPosition:=", CStr(x_pos) & "mil", _
+        "YPosition:=", CStr(y_pos) & "mil", _
+        "ZPosition:=", CStr(z_pos) & "mil", _
+        "XSize:=", CStr(resB_width) & "mil", _
+        "YSize:=", CStr(resB_height) & "mil", _
+        "ZSize:=", CStr(cond_h) & "mil"), _
+        Array("NAME:Attributes", "Name:=", "Res" & res_num & "_Body", _
+        "Flags:=", "", "Color:=", "(0 255 0)", _
+        "Transparency:=", 0, "PartCoordinateSystem:=", "Global", _
+        "MaterialValue:=", Chr(34) & "copper" & Chr(34), _
+        "SolveInside:=", false)
+    
+    'Create first slot
+    oEditor.CreateBox Array("NAME:BoxParameters", _
+        "XPosition:=", CStr(x_pos + slot_x_offset) & "mil", _
+        "YPosition:=", CStr(y_pos + slot_y_offset) & "mil", _
+        "ZPosition:=", CStr(z_pos) & "mil", _
+        "XSize:=", CStr(resB_slot_width) & "mil", _
+        "YSize:=", CStr(resB_slot_height) & "mil", _
+        "ZSize:=", CStr(cond_h) & "mil"), _
+        Array("NAME:Attributes", "Name:=", "Res" & res_num & "_Slot1", _
+        "Flags:=", "", "Color:=", "(255 0 0)", _
+        "Transparency:=", 0, "PartCoordinateSystem:=", "Global", _
+        "MaterialValue:=", Chr(34) & "vacuum" & Chr(34), _
+        "SolveInside:=", true)
+    
+    'Create second slot
+    oEditor.CreateBox Array("NAME:BoxParameters", _
+        "XPosition:=", CStr(x_pos + slot_x_offset) & "mil", _
+        "YPosition:=", CStr(y_pos + slot_y_offset + resB_slot_height + gap_between_slots) & "mil", _
+        "ZPosition:=", CStr(z_pos) & "mil", _
+        "XSize:=", CStr(resB_slot_width) & "mil", _
+        "YSize:=", CStr(resB_slot_height) & "mil", _
+        "ZSize:=", CStr(cond_h) & "mil"), _
+        Array("NAME:Attributes", "Name:=", "Res" & res_num & "_Slot2", _
+        "Flags:=", "", "Color:=", "(255 0 0)", _
+        "Transparency:=", 0, "PartCoordinateSystem:=", "Global", _
+        "MaterialValue:=", Chr(34) & "vacuum" & Chr(34), _
+        "SolveInside:=", true)
+    
+    'Subtract both slots
+    oEditor.Subtract Array("NAME:Selections", _
+        "Blank Parts:=", "Res" & res_num & "_Body", _
+        "Tool Parts:=", "Res" & res_num & "_Slot1,Res" & res_num & "_Slot2"), _
+        Array("NAME:SubtractParameters", "KeepOriginals:=", false)
+End Sub
+
+'***************************************************************************
+' Create All 8 Resonators Based on Edge Data
+'***************************************************************************
+
+'From edge data analysis:
+'Lower layer resonators (z = 11.6 to 12.25)
+'Res2 - Type B at center (-1.968503937, -41.81409142)
+CreateTypeBResonator 2, -1.968503937, -41.81409142, 11.6
+
+'Res4 - Type A at center (-1.968503937, 41.81409142)  
+CreateTypeAResonator 4, -1.968503937, 41.81409142, 11.6
+
+'Res5 - Type A at center (122.6045608, -97.4499125)
+CreateTypeAResonator 5, 122.6045608, -97.4499125, 11.6
+
+'Res6 - Type B at center (161.7445547, -89.97474603)
+CreateTypeBResonator 6, 161.7445547, -89.97474603, 11.6
+
+'Upper layer resonators (z = 17.25 to 17.9)
+'Res1 - Type A at center (95.43920646, -124.6152668)
+CreateTypeAResonator 1, 95.43920646, -124.6152668, 17.25
+
+'Res3 - Type B at center (105.2817261, -2.197310563)
+CreateTypeBResonator 3, 105.2817261, -2.197310563, 17.25
+
+'Res7 - Type B at center (161.7445547, 14.64873709)
+CreateTypeBResonator 7, 161.7445547, 14.64873709, 17.25
+
+'Res8 - Type A at center (132.4470805, 14.64873709)
+CreateTypeAResonator 8, 132.4470805, 14.64873709, 17.25
+
+'***************************************************************************
+' Simple Analysis Setup (no ports/vias for now)
+'***************************************************************************
+
+Set oModule = oDesign.GetModule("AnalysisSetup")
+
+'Create solution setup
+oModule.InsertSetup "HfssDriven", Array("NAME:Setup1", _
+    "Frequency:=", "15GHz", _
+    "PortsOnly:=", false, _
+    "MaxDeltaS:=", 0.02, _
+    "UseMatrixConv:=", false, _
+    "MaximumPasses:=", 10, _
+    "MinimumPasses:=", 1, _
+    "MinimumConvergedPasses:=", 1, _
+    "PercentRefinement:=", 30, _
+    "IsEnabled:=", true, _
+    "BasisOrder:=", 1, _
+    "DoLambdaRefine:=", true, _
+    "DoMaterialLambda:=", true, _
+    "SetLambdaTarget:=", false, _
+    "Target:=", 0.3333, _
+    "UseMaxTetIncrease:=", false, _
+    "PortAccuracy:=", 2, _
+    "UseABCOnPort:=", false, _
+    "SetPortMinMaxTri:=", false, _
+    "UseDomains:=", false, _
+    "UseIterativeSolver:=", false, _
+    "SaveRadFieldsOnly:=", false, _
+    "SaveAnyFields:=", true, _
+    "NoAdditionalRefinementOnImport:=", false)
+
+'Save and validate
+oDesign.Validate
+oProject.Save
+
+MsgBox "8-Pole Multi-Layer Filter created successfully!" & vbCrLf & vbCrLf & _
+    "Structure created:" & vbCrLf & _
+    "- 5 dielectric layers properly stacked" & vbCrLf & _
+    "- 8 resonators placed at exact coordinates" & vbCrLf & _
+    "- Type A (square): Res1, Res4, Res5, Res8" & vbCrLf & _
+    "- Type B (rectangular): Res2, Res3, Res6, Res7" & vbCrLf & _
+    "- Upper layer: Res1, Res3, Res7, Res8" & vbCrLf & _
+    "- Lower layer: Res2, Res4, Res5, Res6"
